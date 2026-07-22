@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Euler / Krylov orientation</title>
+        <title>Flight coordinate frames</title>
         <link rel="stylesheet" href="./style.css">
     </head>
     <body>
@@ -19,23 +19,39 @@
         </main>
 
         <aside id="side">
-            <h1>Euler / Krylov orientation</h1>
+            <h1>Flight coordinate frames</h1>
             <p id="frame-description" class="subhead"></p>
 
             <fieldset>
                 <legend>Display</legend>
                 <div class="control select-control">
-                    <label for="frame-mode">Frame</label>
+                    <label for="frame-mode">Reference</label>
                     <select id="frame-mode">
-                        <option value="ned">NED aircraft · Z down</option>
-                        <option value="yup">Textbook · Y up</option>
+                        <option value="ground">Normal ground · Y up</option>
+                        <option value="ned">NED navigation · Z down</option>
                     </select>
                 </div>
                 <div class="control select-control">
-                    <label for="sequence-mode">Sequence</label>
+                    <label for="transformation">Transform</label>
+                    <select id="transformation">
+                        <option value="attitude">Normal CS → body CS</option>
+                        <option value="trajectory">Normal CS → trajectory CS</option>
+                        <option value="airDirection">Normal CS → air CS 1a</option>
+                        <option value="airBank">Air CS 1a → velocity CS a</option>
+                        <option value="airVelocity">Normal CS → velocity CS a (via 1a)</option>
+                        <option value="airBody">Velocity CS a → body CS</option>
+                    </select>
+                </div>
+                <div class="control select-control">
+                    <label for="sequence-mode">Method</label>
                     <select id="sequence-mode">
                         <option value="krylov">Krylov · three axes</option>
                         <option value="euler">Classical Euler</option>
+                        <option value="trajectory" disabled hidden>Ψ, Θ</option>
+                        <option value="airDirection" disabled hidden>ψₐ, ϑₐ</option>
+                        <option value="airBank" disabled hidden>γₐ</option>
+                        <option value="airVelocity" disabled hidden>ψₐ, ϑₐ, γₐ</option>
+                        <option value="airBody" disabled hidden>β, α</option>
                     </select>
                 </div>
                 <div class="control select-control">
@@ -51,13 +67,13 @@
                 <legend>Angles</legend>
 
                 <div class="control">
-                    <label for="yaw">&psi; yaw</label>
+                    <label id="yaw-label" for="yaw">&psi; yaw</label>
                     <input id="yaw" type="range" min="-180" max="180" value="30">
                     <output id="yaw-value">30°</output>
                 </div>
 
                 <div class="control">
-                    <label for="pitch">&#x03D1; pitch</label>
+                    <label id="pitch-label" for="pitch">&#x03D1; pitch</label>
                     <input id="pitch" type="range" min="-90" max="90" value="20">
                     <output id="pitch-value">20°</output>
                 </div>
@@ -76,13 +92,13 @@
 
                 <div class="steps">
                     <button id="previous" type="button" aria-label="Previous rotation">←</button>
-                    <output id="stage-label">P · final</output>
+                    <output id="stage-label">X/Y/Z · final</output>
                     <button id="next" type="button" aria-label="Next rotation">→</button>
                 </div>
 
                 <small id="sequence-text"></small>
 
-                <button id="animate" type="button">Animate S → T → K → P</button>
+                <button id="animate" type="button">Animate Xg/Yg/Zg → X/Y/Z</button>
                 <button id="reset" type="button">Reset values and view</button>
             </fieldset>
 
@@ -92,15 +108,15 @@
                 <p>
                 <span class="swatch x"></span>X
                 <span class="swatch y"></span>Y
-                <span class="swatch z"></span>Z current frame
+                <span class="swatch z"></span>Z current axes
                 </p>
 
                 <p>
-                <span class="swatch initial"></span>initial frame
-                <span class="swatch intermediate"></span>completed intermediate frames
+                <span class="swatch initial"></span>source
+                <span class="swatch intermediate"></span>intermediate
                 </p>
 
-                <p>
+                <p id="angle-legend">
                 <span class="swatch yaw"></span>&psi;
                 <span class="swatch pitch"></span>&#x03D1;
                 <span class="swatch roll"></span>&phi;

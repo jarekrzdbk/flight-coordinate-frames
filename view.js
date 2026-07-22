@@ -187,7 +187,7 @@ function drawStageArcs3d(data){
     for(let i=0;i<state.step;i++){
         const stage=data.stages[i];
         for(const k of stage.moved){
-            arc(matrixColumn(stage.start,k),stage.axisWorld,stage.angle,STAGE_COLORS[i]);
+            arc(matrixColumn(stage.start,k),stage.axisWorld,stage.angle,stageColor(i));
         }
     }
 }
@@ -197,7 +197,7 @@ function draw3d(data,labels){
     const currentFixed=state.step>0?data.stages[state.step-1].fixedIndex:null;
 
     for(let i=0;i<3;i++){
-        const v=axisVector(["x","y","z"][i]);
+        const v=matrixColumn(data.frames[0],i);
         arrow(v,0x1b2430);
         if(state.step!==0&&!(state.step===1&&i===currentFixed))
             label(labels[0][i],v.clone().multiplyScalar(1.52));
@@ -222,6 +222,7 @@ function draw3d(data,labels){
 
     drawStageArcs3d(data);
     aircraftFrame.setRotationFromMatrix(current);
+    aircraftFrame.visible=true;
 }
 
 function projectVector(v){
@@ -265,10 +266,15 @@ function drawCombined(data,labels){
     ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#555";
     ctx.font=`italic ${Math.max(11,fs-2)}px Segoe UI`;
-    ctx.fillText(`fixed orthographic view · ${CONFIG[state.convention].name}`,10,16);
+    const viewName=state.transformation==="airDirection"?"normal CS → air CS 1a"
+        :state.transformation==="airBank"?"air CS 1a → velocity CS a"
+        :state.transformation==="airVelocity"?"normal CS → velocity CS a via 1a"
+        :state.transformation==="airBody"?"velocity CS a"
+        :state.convention==="ned"?"NED reference":"Y-up ground reference";
+    ctx.fillText(`fixed 2D view · ${viewName}`,10,16);
 
     for(let i=0;i<3;i++){
-        const v=axisVector(["x","y","z"][i]);
+        const v=matrixColumn(data.frames[0],i);
         segment(O,v,COLORS.ink);head(O,v,COLORS.ink);
         if(state.step!==0&&!(state.step===1&&i===currentFixed))
             text(labels[0][i],v.clone().multiplyScalar(1.17),COLORS.ink);
@@ -300,16 +306,17 @@ function drawCombined(data,labels){
             const points=rotationArcPoints(matrixColumn(stage.start,k),stage.axisWorld,stage.angle,1.06,40);
             if(!points)continue;
 
-            ctx.strokeStyle=STAGE_COLORS[stageIndex];
+            const color=stageColor(stageIndex);
+            ctx.strokeStyle=color;
             ctx.lineWidth=1.5;
             ctx.beginPath();
             points.forEach((v,i)=>{const p=P(v);i?ctx.lineTo(...p):ctx.moveTo(...p);});
             ctx.stroke();
-            head(points.at(-2),points.at(-1),STAGE_COLORS[stageIndex],6);
+            head(points.at(-2),points.at(-1),color,6);
 
             if(!labelled){
                 const mid=points[Math.floor(points.length/2)].clone().multiplyScalar(1.2);
-                text(STAGE_ANGLES[stageIndex],mid,STAGE_COLORS[stageIndex],`bold ${fs+1}px Georgia`);
+                text(activeAngleSymbols()[stageIndex],mid,color,`bold ${fs+1}px Georgia`);
                 labelled=true;
             }
         }

@@ -136,6 +136,10 @@ legend {
     margin: 8px 0;
 }
 
+.control[hidden] {
+    display: none;
+}
+
 .select-control {
     grid-template-columns: 76px minmax(0, 1fr);
 }

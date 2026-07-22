@@ -5,8 +5,14 @@ const EPS = 1e-7;
 
 const SYMBOL = Object.freeze({
     psi: "\u03C8",
+    track: "\u03A8",
     theta: "\u03D1",
+    flightPath: "\u0398",
     phi: "\u03C6",
+    gamma: "\u03B3",
+    alpha: "\u03B1",
+    beta: "\u03B2",
+    subA: "\u2090",
     prime: "\u2032",
     doublePrime: "\u2033",
     subS: "\u209B",
@@ -33,9 +39,11 @@ const AXIS_INDEX = {x: 0, y: 1, z: 2};
 
 const CONFIG = Object.freeze({
     ned: {
-        name: "NED aircraft — X forward, Y right, Z down",
-        shortName: "NED aircraft: X forward, Y right, Z down · right-handed (X × Y = Z).",
+        shortName: "NED navigation: Xn north, Yn east, Zn down · right-handed (Xn × Yn = Zn).",
+        referenceLabels: ["Xn", "Yn", "Zn"],
         sequences: {krylov: ["z", "y", "x"], euler: ["z", "y", "z"]},
+        trajectory: ["z", "y"],
+        airBody: ["z", "y"],
         numbers: [3, 2, 1],
         up: new THREE.Vector3(0, 0, -1),
         defaultAzimuth: -3 * Math.PI / 4,
@@ -45,10 +53,12 @@ const CONFIG = Object.freeze({
             [0, -2 / Math.sqrt(6)]
         ]
     },
-    yup: {
-        name: "Textbook Y-up — X forward, Y up, Z right",
-        shortName: "Textbook frame: X forward, Y up, Z right · right-handed (X × Y = Z).",
+    ground: {
+        shortName: "Aircraft-centred normal ground: axes parallel to fixed ground, Yg up, and Xg × Yg = Zg.",
+        referenceLabels: ["Xg", "Yg", "Zg"],
         sequences: {krylov: ["y", "z", "x"], euler: ["y", "z", "y"]},
+        trajectory: ["y", "z"],
+        airBody: ["y", "z"],
         numbers: [3, 1, 2],
         up: new THREE.Vector3(0, 1, 0),
         defaultAzimuth: Math.PI / 4,
@@ -61,11 +71,20 @@ const CONFIG = Object.freeze({
 });
 
 const state = {
-    target: [30, 20, 25],
-    shown: [30, 20, 25],
-    convention: "ned",
+    convention: "ground",
+    transformation: "attitude",
     mode: "krylov",
     labels: "xyz",
+    angleSets: {
+        attitude: [30, 20, 25],
+        trajectory: [30, 20, 0],
+        airDirection: [30, 20, 0],
+        airBank: [25, 0, 0],
+        airVelocity: [30, 20, 25],
+        airBody: [5, 8, 0]
+    },
+    target: [30, 20, 25],
+    shown: [30, 20, 25],
     step: 3,
     animating: false
 };
@@ -76,12 +95,6 @@ const identity = () => new THREE.Matrix4().identity();
 const matrixColumn = (matrix, index) =>
     new THREE.Vector3().setFromMatrixColumn(matrix, index);
 
-function axisVector(axis) {
-    if (axis === "x") return new THREE.Vector3(1, 0, 0);
-    if (axis === "y") return new THREE.Vector3(0, 1, 0);
-    return new THREE.Vector3(0, 0, 1);
-}
-
 function rotationMatrix(axis, angle) {
     const matrix = new THREE.Matrix4();
     if (axis === "x") return matrix.makeRotationX(angle);
@@ -89,17 +102,70 @@ function rotationMatrix(axis, angle) {
     return matrix.makeRotationZ(angle);
 }
 
+function isAttitudeTransformation() {
+    return state.transformation === "attitude";
+}
+
+function usesNumberedLabels() {
+    return isAttitudeTransformation() && state.labels === "numbered";
+}
+
+function activeAxes() {
+    const config = CONFIG[state.convention];
+    if (state.transformation === "trajectory") return config.trajectory;
+    if (state.transformation === "airDirection") return config.sequences.krylov.slice(0, 2);
+    if (state.transformation === "airBank") return ["x"];
+    if (state.transformation === "airVelocity") return config.sequences.krylov;
+    if (state.transformation === "airBody") return config.airBody;
+    return config.sequences[state.mode];
+}
+
+function activeAngleSymbols() {
+    if (state.transformation === "trajectory") return [SYMBOL.track, SYMBOL.flightPath];
+    if (state.transformation === "airDirection")
+        return [`${SYMBOL.psi}${SYMBOL.subA}`, `${SYMBOL.theta}${SYMBOL.subA}`];
+    if (state.transformation === "airBank") return [`${SYMBOL.gamma}${SYMBOL.subA}`];
+    if (state.transformation === "airVelocity")
+        return [`${SYMBOL.psi}${SYMBOL.subA}`, `${SYMBOL.theta}${SYMBOL.subA}`, `${SYMBOL.gamma}${SYMBOL.subA}`];
+    if (state.transformation === "airBody") return [SYMBOL.beta, SYMBOL.alpha];
+    return STAGE_ANGLES;
+}
+
+function stageColor(stage) {
+    return state.transformation === "airBank" ? COLORS.phi : STAGE_COLORS[stage];
+}
+
+function maximumStep() {
+    return activeAxes().length;
+}
+
+function sourceAxisLabels() {
+    if (state.transformation === "airBank") return ["X1a", "Y1a", "Z1a"];
+    if (state.transformation === "airBody") return ["Xa", "Ya", "Za"];
+    return CONFIG[state.convention].referenceLabels;
+}
+
+function targetAxisLabels() {
+    if (state.transformation === "trajectory") return ["Xk", "Yk", "Zk"];
+    if (state.transformation === "airDirection") return ["X1a", "Y1a", "Z1a"];
+    if (state.transformation === "airBank") return ["Xa", "Ya", "Za"];
+    if (state.transformation === "airVelocity") return ["Xa", "Ya", "Za"];
+    return ["X", "Y", "Z"];
+}
+
 function orientationData() {
     const frames = [identity()];
     const stages = [];
-    const axes = CONFIG[state.convention].sequences[state.mode];
+    const axes = activeAxes();
 
-    for (let stage = 0; stage < 3; stage++) {
+    for (let stage = 0; stage < axes.length; stage++) {
         const start = frames[stage];
         const angle = stage < state.step ? state.shown[stage] * D2R : 0;
         const fixedIndex = AXIS_INDEX[axes[stage]];
         const end = start.clone().multiply(rotationMatrix(axes[stage], angle));
 
+        if (Math.abs(end.determinant() - 1) > 1e-10)
+            throw new Error("Orientation frame is not right-handed.");
         frames.push(end);
         stages.push({
             start,
@@ -117,13 +183,13 @@ function orientationData() {
 }
 
 function plainLabels(frame) {
-    if (state.labels === "xyz") {
-        return [
-            ["Xg", "Yg", "Zg"],
-            [`X${SYMBOL.prime}`, `Y${SYMBOL.prime}`, `Z${SYMBOL.prime}`],
-            [`X${SYMBOL.doublePrime}`, `Y${SYMBOL.doublePrime}`, `Z${SYMBOL.doublePrime}`],
-            ["X", "Y", "Z"]
-        ][frame];
+    if (!usesNumberedLabels()) {
+        if (frame === 0) return sourceAxisLabels();
+        if (frame === maximumStep()) return targetAxisLabels();
+        if (state.transformation === "airVelocity" && frame === 2)
+            return ["X1a", "Y1a", "Z1a"];
+        const mark = frame === 1 ? SYMBOL.prime : SYMBOL.doublePrime;
+        return [`X${mark}`, `Y${mark}`, `Z${mark}`];
     }
 
     const suffix = [
@@ -137,8 +203,8 @@ function plainLabels(frame) {
 }
 
 function frameLabels() {
-    const labels = FRAME_CODES.map((_, frame) => [...plainLabels(frame)]);
-    const axes = CONFIG[state.convention].sequences[state.mode];
+    const labels = FRAME_CODES.slice(0, maximumStep() + 1).map((_, frame) => [...plainLabels(frame)]);
+    const axes = activeAxes();
 
     for (let stage = 0; stage < state.step; stage++) {
         const fixed = AXIS_INDEX[axes[stage]];
@@ -154,7 +220,12 @@ function currentFrameLabel(labels, axis) {
         (state.step > 0 ? labels[state.step - 1][axis] : null);
 }
 
+function frameName(frame) {
+    if (usesNumberedLabels()) return FRAME_CODES[frame];
+    return plainLabels(frame).join("/");
+}
+
 function stageArcText(stage) {
-    const axis = CONFIG[state.convention].sequences[state.mode][stage];
-    return `${STAGE_ANGLES[stage]} about +${plainLabels(stage)[AXIS_INDEX[axis]]}`;
+    const axis = activeAxes()[stage];
+    return `${activeAngleSymbols()[stage]} about +${plainLabels(stage)[AXIS_INDEX[axis]]}`;
 }
