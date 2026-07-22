@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Euler / Krylov orientation</title>
+        <link rel="stylesheet" href="./style.css">
+    </head>
+    <body>
+        <main id="main">
+            <section id="view" aria-label="Interactive 3D orientation">
+                <div id="formula"></div>
+                <div class="orbit-hint">Drag to orbit · wheel to zoom</div>
+            </section>
+
+            <section id="projection-panel" aria-label="Fixed 2D projection">
+                <canvas id="combined"></canvas>
+            </section>
+        </main>
+
+        <aside id="side">
+            <h1>Euler / Krylov orientation</h1>
+            <p class="subhead">NED aircraft: X forward, Y right, Z down.</p>
+
+            <fieldset>
+                <legend>Display</legend>
+                <div class="control select-control">
+                    <label for="label-mode">Labels</label>
+                    <select id="label-mode">
+                        <option value="xyz">X, Y, Z</option>
+                        <option value="numbered">1–2–3 / S–T–K–P</option>
+                    </select>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Angles</legend>
+
+                <div class="control">
+                    <label for="yaw">&psi; yaw</label>
+                    <input id="yaw" type="range" min="-180" max="180" value="30">
+                    <output id="yaw-value">30°</output>
+                </div>
+
+                <div class="control">
+                    <label for="pitch">&#x03D1; pitch</label>
+                    <input id="pitch" type="range" min="-90" max="90" value="20">
+                    <output id="pitch-value">20°</output>
+                </div>
+
+                <div class="control">
+                    <label for="roll">&phi; roll</label>
+                    <input id="roll" type="range" min="-180" max="180" value="25">
+                    <output id="roll-value">25°</output>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Sequence position</legend>
+
+                <div class="steps">
+                    <button id="previous" type="button" aria-label="Previous rotation">←</button>
+                    <output id="stage-label">P · final</output>
+                    <button id="next" type="button" aria-label="Next rotation">→</button>
+                </div>
+
+                <small id="sequence-text"></small>
+
+                <button id="animate" type="button">Animate S → T → K → P</button>
+                <button id="reset" type="button">Reset values and view</button>
+            </fieldset>
+
+            <fieldset>
+                <legend>Legend</legend>
+
+                <p>
+                <span class="swatch x"></span>X
+                <span class="swatch y"></span>Y
+                <span class="swatch z"></span>Z current frame
+                </p>
+
+                <p>
+                <span class="swatch initial"></span>initial frame
+                <span class="swatch intermediate"></span>completed intermediate frames
+                </p>
+
+                <p>
+                <span class="swatch yaw"></span>&psi;
+                <span class="swatch pitch"></span>&#x03D1;
+                <span class="swatch roll"></span>&phi;
+                </p>
+
+                <small id="label-note"></small>
+            </fieldset>
+        </aside>
+
+        <script src="./lib/three.min.js"></script>
+        <script src="./model.js"></script>
+        <script src="./view.js"></script>
+        <script src="./app.js"></script>
+    </body>
+</html>

@@ -1,0 +1,272 @@
+:root {
+    --ink: #1b2430;
+    --paper: #f6f7f4;
+    --line: #d8dbd3;
+    --muted: #697078;
+    --accent: #0e7c7b;
+    --yaw: #c96a10;
+    --pitch: #7a1fa2;
+    --roll: #0e7c7b;
+    --x: #c62828;
+    --y: #2e7d32;
+    --z: #1a4fd6;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 330px;
+    overflow: hidden;
+    color: var(--ink);
+    background: var(--paper);
+    font: 14px/1.4 "Segoe UI", system-ui, sans-serif;
+}
+
+#main {
+    min-width: 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(360px, .85fr);
+}
+
+#view,
+#projection-panel {
+    min-width: 0;
+    min-height: 0;
+}
+
+#view {
+    position: relative;
+    overflow: hidden;
+    border-right: 1px solid var(--line);
+    touch-action: none;
+}
+
+#view canvas {
+    display: block;
+}
+
+#formula,
+.orbit-hint {
+    position: absolute;
+    z-index: 2;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .9);
+}
+
+#formula {
+    top: 12px;
+    left: 12px;
+    padding: 7px 10px;
+    font: 13px Consolas, monospace;
+}
+
+.orbit-hint {
+    left: 12px;
+    bottom: 12px;
+    padding: 5px 8px;
+    color: var(--muted);
+    font-size: 12px;
+    pointer-events: none;
+}
+
+#projection-panel {
+    padding: 10px;
+    background: #fff;
+}
+
+#combined {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 1px solid #e3e5df;
+    border-radius: 7px;
+    background: #fff;
+}
+
+#side {
+    min-width: 0;
+    padding: 14px;
+    overflow-y: auto;
+    border-left: 1px solid var(--line);
+    background: #fff;
+}
+
+h1 {
+    margin: 0 0 3px;
+    font-size: 17px;
+}
+
+.subhead {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+fieldset {
+    min-width: 0;
+    margin: 0 0 12px;
+    padding: 9px 10px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+}
+
+legend {
+    padding: 0 5px;
+    color: #555;
+    font-size: 12px;
+}
+
+.control {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr) 46px;
+    gap: 8px;
+    align-items: center;
+    margin: 8px 0;
+}
+
+.select-control {
+    grid-template-columns: 76px minmax(0, 1fr);
+}
+
+.control label,
+.control output {
+    font-family: Consolas, monospace;
+}
+
+.control output {
+    text-align: right;
+}
+
+input[type="range"],
+select {
+    width: 100%;
+    min-width: 0;
+}
+
+select {
+    min-height: 34px;
+    padding: 4px 7px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: #fff;
+    font: inherit;
+}
+
+.steps {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 7px;
+}
+
+.steps output {
+    text-align: center;
+    font: 12px/1.35 Consolas, monospace;
+}
+
+button {
+    width: 100%;
+    min-height: 36px;
+    margin-top: 6px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+}
+
+.steps button {
+    margin: 0;
+    font-size: 18px;
+}
+
+button:hover:not(:disabled) {
+    border-color: #a9c8c2;
+    background: #eef5f2;
+}
+
+button:disabled {
+    cursor: default;
+    opacity: .45;
+}
+
+small {
+    display: block;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+fieldset p {
+    margin: 5px 0;
+    font-size: 12px;
+}
+
+.swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin: 0 4px 0 8px;
+    border-radius: 2px;
+    vertical-align: -1px;
+}
+
+.swatch:first-child {
+    margin-left: 0;
+}
+
+.swatch.x { background: var(--x); }
+.swatch.y { background: var(--y); }
+.swatch.z { background: var(--z); }
+.swatch.yaw { background: var(--yaw); }
+.swatch.pitch { background: var(--pitch); }
+.swatch.roll { background: var(--roll); }
+.swatch.initial { background: #222; }
+.swatch.intermediate { background: #9aa0a6; }
+
+@media (max-width: 900px) {
+    html,
+    body {
+        height: auto;
+    }
+
+    body {
+        display: block;
+        overflow: visible;
+    }
+
+    #main {
+        display: block;
+    }
+
+    #view {
+        height: 62vh;
+        min-height: 430px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+    }
+
+    #projection-panel {
+        height: 520px;
+    }
+
+    #side {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+        overflow: visible;
+    }
+}
