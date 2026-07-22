@@ -8,10 +8,8 @@ view.appendChild(renderer.domElement);
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0xf6f7f4);
 const camera=new THREE.PerspectiveCamera(45,1,0.1,100);
-camera.up.set(0,0,-1);
 scene.add(new THREE.AmbientLight(0xffffff,0.75));
 const light=new THREE.DirectionalLight(0xffffff,0.7);
-light.position.set(3,5,-3);
 scene.add(light);
 
 const dynamicGroup=new THREE.Group();
@@ -23,18 +21,22 @@ let camR=4.4;
 let drag=false,px=0,py=0;
 
 function placeCamera(){
+    const config=CONFIG[state.convention];
     const aspect=view.clientWidth/Math.max(1,view.clientHeight);
     const radius=camR*(aspect<1?1.35:1);
-    camera.position.set(
-        radius*Math.cos(camElevation)*Math.cos(camAzimuth),
-        radius*Math.cos(camElevation)*Math.sin(camAzimuth),
-        -radius*Math.sin(camElevation)
-    );
+    camera.up.copy(config.up);
+    if(state.convention==="ned"){
+        camera.position.set(radius*Math.cos(camElevation)*Math.cos(camAzimuth),radius*Math.cos(camElevation)*Math.sin(camAzimuth),-radius*Math.sin(camElevation));
+        light.position.set(3,5,-3);
+    }else{
+        camera.position.set(radius*Math.cos(camElevation)*Math.cos(camAzimuth),radius*Math.sin(camElevation),radius*Math.cos(camElevation)*Math.sin(camAzimuth));
+        light.position.set(3,5,2);
+    }
     camera.lookAt(0,0,0);
 }
 
 function resetCamera(){
-    camAzimuth=-3*Math.PI/4;
+    camAzimuth=CONFIG[state.convention].defaultAzimuth;
     camElevation=Math.asin(1/Math.sqrt(3));
     camR=4.4;
     placeCamera();
@@ -150,8 +152,14 @@ function makeAircraft(){
 }
 
 const aircraftFrame=new THREE.Group();
-aircraftFrame.add(makeAircraft());
+const aircraftModel=makeAircraft();
+const nedToYup=new THREE.Matrix4().set(1,0,0,0,0,0,-1,0,0,1,0,0,0,0,0,1);
+aircraftFrame.add(aircraftModel);
 scene.add(aircraftFrame);
+
+function setAircraftConvention(){
+    aircraftModel.setRotationFromMatrix(state.convention==="ned"?identity():nedToYup);
+}
 
 function clearDynamic(){
     dynamicGroup.traverse(object=>{
@@ -186,15 +194,20 @@ function drawStageArcs3d(data){
 
 function draw3d(data,labels){
     clearDynamic();
+    const currentFixed=state.step>0?data.stages[state.step-1].fixedIndex:null;
 
     for(let i=0;i<3;i++){
         const v=axisVector(["x","y","z"][i]);
         arrow(v,0x1b2430);
-        label(labels[0][i],v.clone().multiplyScalar(1.52));
+        if(state.step!==0&&!(state.step===1&&i===currentFixed))
+            label(labels[0][i],v.clone().multiplyScalar(1.52));
     }
 
     for(let frame=1;frame<state.step;frame++){
-        drawFrame3d(data.frames[frame],labels[frame],0x9aa0a6,true,1.08,data.stages[frame-1].moved);
+        const previousLabels=labels[frame].map((value,i)=>
+            frame===state.step-1&&i===currentFixed?null:value
+        );
+        drawFrame3d(data.frames[frame],previousLabels,0x9aa0a6,true,1.08,data.stages[frame-1].moved);
     }
 
     const current=data.frames[state.step];
@@ -204,7 +217,7 @@ function draw3d(data,labels){
     for(let i=0;i<3;i++){
         const v=matrixColumn(current,i);
         arrow(v,colors[i]);
-        label(labels[state.step][i],v.clone().multiplyScalar(1.52),css[i]);
+        label(currentFrameLabel(labels,i),v.clone().multiplyScalar(1.52),css[i]);
     }
 
     drawStageArcs3d(data);
@@ -212,9 +225,10 @@ function draw3d(data,labels){
 }
 
 function projectVector(v){
+    const projection=CONFIG[state.convention].projection;
     return [
-        v.x*PROJECTION[0][0]+v.y*PROJECTION[1][0]+v.z*PROJECTION[2][0],
-        v.x*PROJECTION[0][1]+v.y*PROJECTION[1][1]+v.z*PROJECTION[2][1]
+        v.x*projection[0][0]+v.y*projection[1][0]+v.z*projection[2][0],
+        v.x*projection[0][1]+v.y*projection[1][1]+v.z*projection[2][1]
     ];
 }
 
@@ -245,24 +259,27 @@ function drawCombined(data,labels){
     };
 
     const O=new THREE.Vector3();
+    const currentFixed=state.step>0?data.stages[state.step-1].fixedIndex:null;
     ctx.clearRect(0,0,W,H);
     ctx.fillStyle="#fff";
     ctx.fillRect(0,0,W,H);
     ctx.fillStyle="#555";
     ctx.font=`italic ${Math.max(11,fs-2)}px Segoe UI`;
-    ctx.fillText("fixed orthographic view · NED aircraft — X forward, Y right, Z down",10,16);
+    ctx.fillText(`fixed orthographic view · ${CONFIG[state.convention].name}`,10,16);
 
     for(let i=0;i<3;i++){
         const v=axisVector(["x","y","z"][i]);
         segment(O,v,COLORS.ink);head(O,v,COLORS.ink);
-        text(labels[0][i],v.clone().multiplyScalar(1.17),COLORS.ink);
+        if(state.step!==0&&!(state.step===1&&i===currentFixed))
+            text(labels[0][i],v.clone().multiplyScalar(1.17),COLORS.ink);
     }
 
     for(let frame=1;frame<state.step;frame++){
         for(const i of data.stages[frame-1].moved){
             const v=matrixColumn(data.frames[frame],i);
             segment(O,v.clone().multiplyScalar(.9),COLORS.grey,1,[5,4]);
-            text(labels[frame][i],v.clone().multiplyScalar(1.02),COLORS.grey,`${Math.max(10,fs-2)}px Georgia`);
+            if(!(frame===state.step-1&&i===currentFixed))
+                text(labels[frame][i],v.clone().multiplyScalar(1.02),COLORS.grey,`${Math.max(10,fs-2)}px Georgia`);
         }
     }
 
@@ -272,7 +289,7 @@ function drawCombined(data,labels){
     for(let i=0;i<3;i++){
         const v=matrixColumn(current,i);
         segment(O,v,bodyColors[i],2.5);head(O,v,bodyColors[i],8);
-        text(labels[state.step][i],v.clone().multiplyScalar(1.17),bodyColors[i],`bold ${fs+1}px Georgia`);
+        text(currentFrameLabel(labels,i),v.clone().multiplyScalar(1.17),bodyColors[i],`bold ${fs+1}px Georgia`);
     }
 
     for(let stageIndex=0;stageIndex<state.step;stageIndex++){

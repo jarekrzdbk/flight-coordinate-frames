@@ -6,6 +6,8 @@ const angleControls = ["yaw", "pitch", "roll"].map(name => ({
 }));
 
 const ui = {
+    convention: $("frame-mode"),
+    mode: $("sequence-mode"),
     labels: $("label-mode"),
     previous: $("previous"),
     next: $("next"),
@@ -14,7 +16,10 @@ const ui = {
     stage: $("stage-label"),
     sequence: $("sequence-text"),
     note: $("label-note"),
-    formula: $("formula")
+    formula: $("formula"),
+    frameDescription: $("frame-description"),
+    angleNote: $("angle-note"),
+    rollLabel: $("roll-label")
 };
 
 function update() {
@@ -42,16 +47,24 @@ function update() {
 
     ui.note.textContent = state.labels === "xyz"
         ? "XYZ mode uses Xg/Yg/Zg, primes for intermediate frames, and final X/Y/Z. It does not add S/T/K/P to axis labels."
-        : "Numbered mode uses 3–2–1 for X–Y–Z and S/T/K/P subscripts for successive frames.";
+        : `Numbered mode uses ${CONFIG[state.convention].numbers.join("–")} for X–Y–Z and S/T/K/P subscripts for successive frames.`;
 
-    const [psi, theta, phi] = STAGE_ANGLES;
+    ui.frameDescription.textContent = CONFIG[state.convention].shortName;
+    ui.angleNote.textContent = state.mode === "euler"
+        ? "Classical Euler: ϑ ranges from 0° to 180°; φ is the final spin."
+        : "Krylov / Tait–Bryan: ϑ ranges from −90° to +90°.";
+    ui.rollLabel.innerHTML = state.mode === "euler" ? "&phi; spin" : "&phi; roll";
+
+    const axes = CONFIG[state.convention].sequences[state.mode];
     ui.formula.innerHTML =
-        `M = R<sub>z</sub>(${psi}) · R<sub>y</sub>(${theta}) · ` +
-            `R<sub>x</sub>(${phi}) &nbsp; x<sub>g</sub> = M · x<sub>body</sub>`;
+        `M = ${axes.map((axis, index) => `R<sub>${axis}</sub>(${STAGE_ANGLES[index]})`).join(" · ")}` +
+        ` &nbsp; x<sub>g</sub> = M · x<sub>body</sub>`;
 
     ui.previous.disabled = state.step === 0 || state.animating;
     ui.next.disabled = state.step === 3 || state.animating;
     ui.labels.disabled = state.animating;
+    ui.convention.disabled = state.animating;
+    ui.mode.disabled = state.animating;
     ui.animate.disabled = state.animating;
     ui.reset.disabled = state.animating;
 }
@@ -103,14 +116,12 @@ async function animateSequence() {
 function reset() {
     state.target = [30, 20, 25];
     state.shown = [...state.target];
-    state.labels = "xyz";
     state.step = 3;
 
     angleControls.forEach((control, index) => {
         control.input.value = state.target[index];
     });
 
-    ui.labels.value = state.labels;
     resetCamera();
     update();
 }
@@ -121,6 +132,26 @@ angleControls.forEach(control =>
 
 ui.labels.addEventListener("change", event => {
     state.labels = event.target.value;
+    update();
+});
+
+ui.convention.addEventListener("change", event => {
+    state.convention = event.target.value;
+    state.step = 3;
+    setAircraftConvention();
+    resetCamera();
+    update();
+});
+
+ui.mode.addEventListener("change", event => {
+    state.mode = event.target.value;
+    const euler = state.mode === "euler";
+    angleControls[1].input.min = euler ? 0 : -90;
+    angleControls[1].input.max = euler ? 180 : 90;
+    state.target[1] = clamp(state.target[1], Number(angleControls[1].input.min), Number(angleControls[1].input.max));
+    state.shown = [...state.target];
+    angleControls[1].input.value = state.target[1];
+    state.step = 3;
     update();
 });
 
@@ -140,6 +171,7 @@ ui.animate.addEventListener("click", animateSequence);
 ui.reset.addEventListener("click", reset);
 
 resetCamera();
+setAircraftConvention();
 resizeRenderer();
 resizeProjection();
 update();

@@ -20,10 +20,24 @@
 
         <aside id="side">
             <h1>Euler / Krylov orientation</h1>
-            <p class="subhead">NED aircraft: X forward, Y right, Z down.</p>
+            <p id="frame-description" class="subhead"></p>
 
             <fieldset>
                 <legend>Display</legend>
+                <div class="control select-control">
+                    <label for="frame-mode">Frame</label>
+                    <select id="frame-mode">
+                        <option value="ned">NED aircraft · Z down</option>
+                        <option value="yup">Textbook · Y up</option>
+                    </select>
+                </div>
+                <div class="control select-control">
+                    <label for="sequence-mode">Sequence</label>
+                    <select id="sequence-mode">
+                        <option value="krylov">Krylov · three axes</option>
+                        <option value="euler">Classical Euler</option>
+                    </select>
+                </div>
                 <div class="control select-control">
                     <label for="label-mode">Labels</label>
                     <select id="label-mode">
@@ -49,10 +63,12 @@
                 </div>
 
                 <div class="control">
-                    <label for="roll">&phi; roll</label>
+                    <label id="roll-label" for="roll">&phi; roll</label>
                     <input id="roll" type="range" min="-180" max="180" value="25">
                     <output id="roll-value">25°</output>
                 </div>
+
+                <small id="angle-note"></small>
             </fieldset>
 
             <fieldset>
