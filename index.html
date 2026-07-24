@@ -70,8 +70,8 @@
                 <div class="control select-control">
                     <label for="sequence-mode">Method</label>
                     <select id="sequence-mode">
-                        <option value="krylov">Krylov · three axes</option>
-                        <option value="euler">Classical Euler</option>
+                        <option value="krylov">Krylov / Tait–Bryan</option>
+                        <option value="euler">Proper Euler</option>
                         <option value="trajectory" disabled hidden>Ψ, Θ</option>
                         <option value="airDirection" disabled hidden>ψₐ, ϑₐ</option>
                         <option value="airBank" disabled hidden>γₐ</option>
@@ -113,6 +113,21 @@
                 </div>
 
                 <small id="angle-note"></small>
+                <div id="gimbal-panel" class="gimbal-panel" hidden aria-live="polite">
+                    <div class="gimbal-status-row">
+                        <strong>Gimbal lock</strong>
+                        <span id="gimbal-status">Normal</span>
+                        <output id="gimbal-distance">—</output>
+                    </div>
+                    <small id="gimbal-note"></small>
+                    <div class="gimbal-footer">
+                        <span id="gimbal-axes-value">—</span>
+                        <div class="gimbal-buttons">
+                            <button id="gimbal-first" type="button">−90°</button>
+                            <button id="gimbal-second" type="button">+90°</button>
+                        </div>
+                    </div>
+                </div>
             </fieldset>
 
             <fieldset>

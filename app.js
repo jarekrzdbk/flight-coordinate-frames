@@ -34,6 +34,13 @@ const ui = {
     pitchLabel: $("pitch-label"),
     rollLabel: $("roll-label"),
     angleLegend: $("angle-legend"),
+    gimbalPanel: $("gimbal-panel"),
+    gimbalStatus: $("gimbal-status"),
+    gimbalDistance: $("gimbal-distance"),
+    gimbalNote: $("gimbal-note"),
+    gimbalAxes: $("gimbal-axes-value"),
+    gimbalFirst: $("gimbal-first"),
+    gimbalSecond: $("gimbal-second"),
     dcmToggle: $("toggle-dcm"),
     dcmPanel: $("dcm-panel"),
     dcmDisplay: $("dcm-display"),
@@ -41,6 +48,40 @@ const ui = {
 };
 
 let dcmVisible=false;
+
+function updateGimbalPanel(info) {
+    ui.gimbalPanel.hidden = !info.enabled;
+    if (!info.enabled) return;
+
+    ui.gimbalStatus.textContent = info.status === "locked" ? "Gimbal lock"
+        : info.status === "near" ? "Near gimbal lock"
+        : "Normal";
+    ui.gimbalStatus.className = `gimbal-${info.status}`;
+    ui.gimbalDistance.textContent = `Δ ${Math.abs(info.distance / D2R).toFixed(1)}°`;
+    ui.gimbalAxes.textContent = info.status === "normal"
+        ? `${info.axisNames[0]} / ${info.axisNames[1]} · separate`
+        : `${info.axisNames[0]} / ${info.axisNames[1]} · ${info.relation}`;
+    ui.gimbalNote.textContent = info.properEuler
+        ? "ϑ = 0° or 180°: first and final axes coincide."
+        : "ϑ = ±90°: yaw and roll axes coincide.";
+    [ui.gimbalFirst, ui.gimbalSecond].forEach((button, index) => {
+        const angle = info.lockAngles[index];
+        button.textContent = `${angle < 0 ? "−" : ""}${Math.abs(angle)}°`;
+        button.title = `Set middle angle to ${angle}° gimbal lock`;
+        button.setAttribute("aria-label", button.title);
+    });
+}
+
+function setGimbalAngle(angle) {
+    const info = gimbalInfo();
+    if (!info.enabled) return;
+    state.target[1] = angle;
+    state.angleSets[state.transformation] = [...state.target];
+    state.shown = [...state.target];
+    angleControls[1].input.value = angle;
+    state.step = maximumStep();
+    update();
+}
 
 function matrixRows(matrix) {
     const e=matrix.elements;
@@ -308,11 +349,14 @@ function angleUi() {
         note: `Velocity coordinate system → body coordinate system: ${stageArcText(0)}, then ${stageArcText(1)}.`,
         legend: '<span class="swatch yaw"></span>β <span class="swatch pitch"></span>α'
     };
+    if (state.mode === "euler") return {
+        labels: ["&psi;", "&#x03D1;", "&phi;"],
+        note: "Proper Euler · repeated axis · lock at ϑ = 0° or 180°.",
+        legend: '<span class="swatch yaw"></span>ψ <span class="swatch pitch"></span>ϑ <span class="swatch roll"></span>φ'
+    };
     return {
-        labels: ["&psi; yaw", "&#x03D1; pitch", state.mode === "euler" ? "&phi; spin" : "&phi; roll"],
-        note: state.mode === "euler"
-            ? "Classical Euler: ϑ ranges from 0° to 180°; φ is the final spin."
-            : "Krylov / Tait–Bryan: ϑ ranges from −90° to +90°.",
+        labels: ["&psi; yaw", "&#x03D1; pitch", "&phi; roll"],
+        note: "Krylov / Tait–Bryan · yaw, pitch, roll · lock at ϑ = ±90°.",
         legend: '<span class="swatch yaw"></span>ψ <span class="swatch pitch"></span>ϑ <span class="swatch roll"></span>φ'
     };
 }
@@ -344,12 +388,13 @@ function update() {
     const data = orientationData();
     const labels = frameLabels();
     const maxStep = maximumStep();
+    const gimbal = gimbalInfo();
 
     updateTransformOptions();
 
-    draw3d(data, labels);
-    drawCombined(data, labels);
-    drawSpherical(data, labels);
+    draw3d(data, labels, gimbal);
+    drawCombined(data, labels, gimbal);
+    drawSpherical(data, labels, gimbal);
     updateProjectionPresentation();
     updateDcmPanel();
 
@@ -365,6 +410,7 @@ function update() {
     });
     ui.angleNote.textContent = anglePresentation.note;
     ui.angleLegend.innerHTML = anglePresentation.legend;
+    updateGimbalPanel(gimbal);
 
     const descriptions = [`${frameName(0)} · initial`];
     for (let stage = 0; stage < maxStep; stage++) {
@@ -491,6 +537,8 @@ ui.next.addEventListener("click", () => {
 
 ui.animate.addEventListener("click", animateSequence);
 ui.reset.addEventListener("click", reset);
+ui.gimbalFirst.addEventListener("click",()=>setGimbalAngle(gimbalInfo().lockAngles[0]));
+ui.gimbalSecond.addEventListener("click",()=>setGimbalAngle(gimbalInfo().lockAngles[1]));
 ui.dcmToggle.addEventListener("click",()=>{
     dcmVisible=!dcmVisible;
     ui.dcmPanel.hidden=!dcmVisible;
@@ -505,10 +553,25 @@ ui.dcmDisplay.addEventListener("change",updateDcmPanel);
 resetCamera();
 setAircraftConvention();
 configureAngles();
-const requestedStep=new URLSearchParams(location.search).get("step");
+const query=new URLSearchParams(location.search);
+const requestedMode=query.get("mode");
+if(["krylov","euler"].includes(requestedMode)){
+    state.mode=requestedMode;
+    ui.mode.value=requestedMode;
+    configureAngles();
+}
+const requestedStep=query.get("step");
 if(requestedStep!==null)
     state.step=clamp(Number(requestedStep)||0,0,maximumStep());
-const requestedDcm=new URLSearchParams(location.search).get("dcm");
+const requestedGimbal=query.get("gimbal");
+if(gimbalInfo().enabled && ["first","second"].includes(requestedGimbal)){
+    const lock=gimbalInfo().lockAngles[requestedGimbal==="second"?1:0];
+    state.target[1]=lock;
+    state.shown=[...state.target];
+    state.angleSets.attitude=[...state.target];
+    angleControls[1].input.value=String(lock);
+}
+const requestedDcm=query.get("dcm");
 if(["symbolic","numeric"].includes(requestedDcm)){
     dcmVisible=true;
     ui.dcmDisplay.value=requestedDcm;

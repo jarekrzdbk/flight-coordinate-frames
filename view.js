@@ -220,7 +220,7 @@ function drawStageArcs3d(data){
     }
 }
 
-function draw3d(data,labels){
+function draw3d(data,labels,gimbal){
     clearDynamic();
     const currentFixed=state.step>0?data.stages[state.step-1].fixedIndex:null;
 
@@ -249,6 +249,12 @@ function draw3d(data,labels){
     }
 
     drawStageArcs3d(data);
+    if (gimbal.enabled && state.step === maximumStep() && gimbal.status !== "normal") {
+        const highlight = "#d81b60";
+        arrow(gimbal.firstAxis, highlight, 1.48, 0.1);
+        arrow(gimbal.thirdAxis, highlight, 1.48, 0.1);
+        label(`gimbal · ${gimbal.relation}`, gimbal.firstAxis.clone().multiplyScalar(1.4), highlight, 0.25);
+    }
     aircraftFrame.setRotationFromMatrix(current);
     aircraftFrame.visible=true;
 }
@@ -261,7 +267,7 @@ function projectVector(v){
     ];
 }
 
-function drawCombined(data,labels){
+function drawCombined(data,labels,gimbal){
     const canvas=projectionCanvas,ctx=canvas.getContext("2d");
     const W=canvas.width,H=canvas.height,cx=W/2,cy=H*0.48,scale=Math.min(W,H)*0.27;
     const fs=clamp(Math.round(Math.min(W,H)*0.04),11,19);
@@ -326,6 +332,13 @@ function drawCombined(data,labels){
         text(currentFrameLabel(labels,i),v.clone().multiplyScalar(1.17),bodyColors[i],`bold ${fs+1}px Georgia`);
     }
 
+    if (gimbal.enabled && state.step === maximumStep() && gimbal.status !== "normal") {
+        const highlight = "#d81b60";
+        segment(O,gimbal.firstAxis,highlight,4);head(O,gimbal.firstAxis,highlight,9);
+        segment(O,gimbal.thirdAxis,highlight,4);head(O,gimbal.thirdAxis,highlight,9);
+        text(`gimbal · ${gimbal.relation}`,gimbal.firstAxis.clone().multiplyScalar(1.3),highlight,`bold ${fs}px Georgia`);
+    }
+
     for(let stageIndex=0;stageIndex<state.step;stageIndex++){
         const stage=data.stages[stageIndex];
         let labelled=false;
@@ -351,7 +364,7 @@ function drawCombined(data,labels){
     }
 }
 
-function drawSpherical(data,labels){
+function drawSpherical(data,labels,gimbal){
     const canvas=sphericalCanvas,ctx=canvas.getContext("2d");
     const W=canvas.width,H=canvas.height;
     const cx=W/2,cy=H*.52,scale=Math.min(W,H)*.34;
@@ -451,6 +464,13 @@ function drawSpherical(data,labels){
             const v=matrixColumn(current,axis);
             arrow(v,colors[axis],2.35,currentFrameLabel(labels,axis),true);
         }
+    }
+
+    if (gimbal.enabled && state.step === maximumStep() && gimbal.status !== "normal") {
+        const highlight = "#d81b60";
+        arrow(gimbal.firstAxis,highlight,3.1,2.4,true);
+        arrow(gimbal.thirdAxis,highlight,3.1,2.4,true);
+        text(`gimbal · ${gimbal.relation}`,gimbal.firstAxis.clone().multiplyScalar(1.18),highlight,true,[0, -fontSize]);
     }
 
     for(let stage=0;stage<state.step;stage++){

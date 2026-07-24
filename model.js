@@ -182,6 +182,43 @@ function orientationData() {
     return { frames, stages };
 }
 
+function gimbalInfo() {
+    const axes = activeAxes();
+    if (axes.length !== 3) return {enabled: false};
+
+    const middle = state.target[1] * D2R;
+    const properEuler = isAttitudeTransformation() && state.mode === "euler";
+    const singularMetric = properEuler ? Math.abs(Math.sin(middle)) : Math.abs(Math.cos(middle));
+    const distance = Math.asin(clamp(singularMetric, 0, 1));
+    const frames = [identity()];
+    for (let stage = 0; stage < axes.length; stage++)
+        frames.push(frames.at(-1).clone().multiply(
+            rotationMatrix(axes[stage], state.target[stage] * D2R)
+        ));
+
+    const firstAxis = matrixColumn(frames[0], AXIS_INDEX[axes[0]]).normalize();
+    const thirdAxis = matrixColumn(frames[2], AXIS_INDEX[axes[2]]).normalize();
+    const dot = firstAxis.dot(thirdAxis);
+    const status = singularMetric < 1e-6 ? "locked"
+        : singularMetric < 0.1 ? "near"
+        : "normal";
+
+    return {
+        enabled: true,
+        status,
+        properEuler,
+        distance,
+        firstAxis,
+        thirdAxis,
+        relation: dot >= 0 ? "aligned" : "opposite",
+        axisNames: [
+            sourceAxisLabels()[AXIS_INDEX[axes[0]]],
+            targetAxisLabels()[AXIS_INDEX[axes[2]]]
+        ],
+        lockAngles: properEuler ? [0, 180] : [-90, 90]
+    };
+}
+
 function plainLabels(frame) {
     if (!usesNumberedLabels()) {
         if (frame === 0) return sourceAxisLabels();
