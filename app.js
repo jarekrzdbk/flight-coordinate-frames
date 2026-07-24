@@ -124,6 +124,8 @@ function update() {
 
     draw3d(data, labels);
     drawCombined(data, labels);
+    drawSpherical(data, labels);
+    updateProjectionPresentation();
 
     angleControls.forEach((control, index) => {
         control.output.textContent = `${Math.round(state.target[index])}°`;
@@ -267,6 +269,9 @@ ui.reset.addEventListener("click", reset);
 resetCamera();
 setAircraftConvention();
 configureAngles();
+const requestedStep=new URLSearchParams(location.search).get("step");
+if(requestedStep!==null)
+    state.step=clamp(Number(requestedStep)||0,0,maximumStep());
 resizeRenderer();
 resizeProjection();
 update();

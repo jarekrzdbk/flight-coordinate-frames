@@ -14,7 +14,18 @@
             </section>
 
             <section id="projection-panel" aria-label="Fixed 2D projection">
-                <canvas id="combined"></canvas>
+                <div class="projection-switch" role="group" aria-label="Projection style">
+                    <button id="show-axes" class="active" type="button" aria-pressed="true">
+                        2D axes
+                    </button>
+                    <button id="show-spherical" type="button" aria-pressed="false">
+                        Spherical construction
+                    </button>
+                </div>
+                <div class="projection-stage">
+                    <canvas id="combined"></canvas>
+                    <canvas id="spherical-canvas" aria-label="Live spherical construction" hidden></canvas>
+                </div>
             </section>
         </main>
 
