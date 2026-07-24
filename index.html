@@ -27,6 +27,20 @@
                     <canvas id="spherical-canvas" aria-label="Live spherical construction" hidden></canvas>
                 </div>
             </section>
+
+            <section id="dcm-panel" aria-label="Direction cosine matrices" hidden>
+                <header class="dcm-header">
+                    <h2>Direction cosine matrices</h2>
+                    <label for="dcm-display">
+                        Entries
+                        <select id="dcm-display">
+                            <option value="symbolic">Symbolic</option>
+                            <option value="numeric">Numeric values</option>
+                        </select>
+                    </label>
+                </header>
+                <div id="dcm-grid"></div>
+            </section>
         </main>
 
         <aside id="side">
@@ -72,6 +86,9 @@
                         <option value="numbered">1–2–3 / S–T–K–P</option>
                     </select>
                 </div>
+                <button id="toggle-dcm" type="button" aria-expanded="false">
+                    Show direction cosine matrices
+                </button>
             </fieldset>
 
             <fieldset>

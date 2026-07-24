@@ -33,8 +33,233 @@ const ui = {
     yawLabel: $("yaw-label"),
     pitchLabel: $("pitch-label"),
     rollLabel: $("roll-label"),
-    angleLegend: $("angle-legend")
+    angleLegend: $("angle-legend"),
+    dcmToggle: $("toggle-dcm"),
+    dcmPanel: $("dcm-panel"),
+    dcmDisplay: $("dcm-display"),
+    dcmGrid: $("dcm-grid")
 };
+
+let dcmVisible=false;
+
+function matrixRows(matrix) {
+    const e=matrix.elements;
+    return [
+        [e[0],e[4],e[8]],
+        [e[1],e[5],e[9]],
+        [e[2],e[6],e[10]]
+    ];
+}
+
+function symbolicIdentity() {
+    return [0,1,2].map(row=>[0,1,2].map(column=>
+        row===column?[{coefficient:1,factors:[]}]:[]
+    ));
+}
+
+function symbolicCombine(terms) {
+    const combined=new Map();
+    for(const term of terms) {
+        const factors=[...term.factors].sort((a,b)=>a.stage-b.stage||a.kind.localeCompare(b.kind));
+        const key=factors.map(factor=>`${factor.kind}${factor.stage}`).join(",");
+        const previous=combined.get(key);
+        if(previous)previous.coefficient+=term.coefficient;
+        else combined.set(key,{coefficient:term.coefficient,factors});
+    }
+    return [...combined.values()].filter(term=>term.coefficient!==0);
+}
+
+function symbolicFactor(axis,stage) {
+    const c=[{coefficient:1,factors:[{kind:"cos",stage}]}];
+    const s=[{coefficient:1,factors:[{kind:"sin",stage}]}];
+    const ns=[{coefficient:-1,factors:[{kind:"sin",stage}]}];
+    const one=[{coefficient:1,factors:[]}],zero=[];
+    if(axis==="x")return [[one,zero,zero],[zero,c,ns],[zero,s,c]];
+    if(axis==="y")return [[c,zero,s],[zero,one,zero],[ns,zero,c]];
+    return [[c,ns,zero],[s,c,zero],[zero,zero,one]];
+}
+
+function symbolicMultiply(left,right) {
+    return [0,1,2].map(row=>[0,1,2].map(column=>{
+        const terms=[];
+        for(let inner=0;inner<3;inner++)
+            for(const a of left[row][inner])
+                for(const b of right[inner][column])
+                    terms.push({
+                        coefficient:a.coefficient*b.coefficient,
+                        factors:[...a.factors,...b.factors]
+                    });
+        return symbolicCombine(terms);
+    }));
+}
+
+function angleHtml(stage) {
+    return `<span class="angle-token stage-${stage}">${activeAngleSymbols()[stage]}</span>`;
+}
+
+function factorAxisText(stage) {
+    const axis=activeAxes()[stage];
+    return `about +${plainLabels(stage)[AXIS_INDEX[axis]]}`;
+}
+
+function symbolicEntryHtml(terms) {
+    if(!terms.length)return "0";
+    return terms.map((term,index)=>{
+        const sign=term.coefficient<0?"−":index?"+":"";
+        const magnitude=Math.abs(term.coefficient);
+        const factors=term.factors.map(factor=>
+            `${factor.kind}(${angleHtml(factor.stage)})`
+        ).join(" ");
+        const coefficient=magnitude===1&&factors?"":String(magnitude);
+        return `${index?" ":""}${sign}${coefficient}${factors}`;
+    }).join("");
+}
+
+function matrixSection(titleText) {
+    const section=document.createElement("section");
+    section.className="dcm-section";
+    const title=document.createElement("h3");
+    title.textContent=titleText;
+    const row=document.createElement("div");
+    row.className="dcm-row";
+    section.append(title,row);
+    ui.dcmGrid.appendChild(section);
+    return row;
+}
+
+function matrixElement(rows) {
+    const matrix=document.createElement("div");
+    matrix.className="matrix";
+    for(const row of rows)for(const entry of row){
+        const cell=document.createElement("div");
+        cell.className="matrix-cell";
+        cell.innerHTML=entry;
+        matrix.appendChild(cell);
+    }
+    return matrix;
+}
+
+function appendMatrixCard(container,titleHtml,rows,stage=null) {
+    const card=document.createElement("article");
+    card.className="matrix-card";
+    if(stage!==null)card.style.setProperty("--stage-color",stageColor(stage));
+
+    const title=document.createElement("div");
+    title.className="matrix-title";
+    title.innerHTML=titleHtml;
+    card.appendChild(title);
+
+    card.appendChild(matrixElement(rows));
+    container.appendChild(card);
+}
+
+function appendMatrixOperand(container,labelHtml,rows) {
+    const operand=document.createElement("div");
+    operand.className="matrix-operand";
+    const label=document.createElement("div");
+    label.className="matrix-operand-label";
+    label.innerHTML=labelHtml;
+    operand.append(label,matrixElement(rows));
+    container.appendChild(operand);
+}
+
+function appendCurrentMultiplication(container,cumulative,factors,rowsFor,stage) {
+    const card=document.createElement("article");
+    card.className="matrix-equation-card";
+    const title=document.createElement("div");
+    title.className="matrix-title";
+
+    if(stage===0) {
+        title.innerHTML='Current position · no rotation applied<span class="current-badge">current</span>';
+        const equation=document.createElement("div");
+        equation.className="matrix-equation";
+        appendMatrixOperand(equation,"C0 = I",rowsFor(cumulative[0]));
+        card.append(title,equation);
+        container.appendChild(card);
+        return;
+    }
+
+    const factorIndex=stage-1;
+    const resultName=stage===factors.length?"M":`C${stage}`;
+    title.innerHTML=`Stage ${stage} · previous × next rotation`
+        +'<span class="current-badge">current</span>';
+    card.style.setProperty("--stage-color",stageColor(factorIndex));
+
+    const equation=document.createElement("div");
+    equation.className="matrix-equation";
+    appendMatrixOperand(equation,`C${stage-1}`,rowsFor(cumulative[stage-1]));
+    const multiply=document.createElement("div");
+    multiply.className="matrix-operator";
+    multiply.textContent="×";
+    equation.appendChild(multiply);
+    appendMatrixOperand(
+        equation,
+        `R${stage}(${angleHtml(factorIndex)}) · ${factorAxisText(factorIndex)}`,
+        rowsFor(factors[factorIndex])
+    );
+    const equals=document.createElement("div");
+    equals.className="matrix-operator";
+    equals.textContent="=";
+    equation.appendChild(equals);
+    appendMatrixOperand(equation,resultName,rowsFor(cumulative[stage]));
+
+    card.append(title,equation);
+    container.appendChild(card);
+}
+
+function updateDcmPanel() {
+    if(!dcmVisible)return;
+    const axes=activeAxes();
+    const symbolic=ui.dcmDisplay.value==="symbolic";
+    ui.dcmGrid.replaceChildren();
+    const currentRow=matrixSection("Current multiplication · full matrices");
+    const factorRow=matrixSection("Factor matrices");
+
+    if(symbolic) {
+        const factors=axes.map((axis,stage)=>symbolicFactor(axis,stage));
+        const cumulative=[symbolicIdentity()];
+        factors.forEach(factor=>
+            cumulative.push(symbolicMultiply(cumulative.at(-1),factor))
+        );
+        const rowsFor=matrix=>matrix.map(row=>row.map(symbolicEntryHtml));
+        appendCurrentMultiplication(
+            currentRow,cumulative,factors,rowsFor,
+            Math.min(state.step,axes.length)
+        );
+        factors.forEach((factor,stage)=>{
+            appendMatrixCard(
+                factorRow,
+                `R${stage+1}(${angleHtml(stage)}) · ${factorAxisText(stage)}`,
+                rowsFor(factor),
+                stage
+            );
+        });
+        return;
+    }
+
+    const factors=axes.map((axis,stage)=>
+        rotationMatrix(axis,state.target[stage]*D2R)
+    );
+    const cumulative=[identity()];
+    factors.forEach(factor=>
+        cumulative.push(cumulative.at(-1).clone().multiply(factor))
+    );
+    const rowsFor=matrix=>matrixRows(matrix).map(row=>row.map(value=>
+        (Math.abs(value)<5e-12?0:value).toFixed(4)
+    ));
+    appendCurrentMultiplication(
+        currentRow,cumulative,factors,rowsFor,
+        Math.min(state.step,axes.length)
+    );
+    factors.forEach((factor,stage)=>{
+        appendMatrixCard(
+            factorRow,
+            `R${stage+1}(${angleHtml(stage)} = ${Math.round(state.target[stage])}°) · ${factorAxisText(stage)}`,
+            rowsFor(factor),
+            stage
+        );
+    });
+}
 
 function angleRanges() {
     if (state.transformation === "airBody") return [[-45, 45], [-20, 90], [0, 0]];
@@ -126,6 +351,7 @@ function update() {
     drawCombined(data, labels);
     drawSpherical(data, labels);
     updateProjectionPresentation();
+    updateDcmPanel();
 
     angleControls.forEach((control, index) => {
         control.output.textContent = `${Math.round(state.target[index])}°`;
@@ -265,6 +491,16 @@ ui.next.addEventListener("click", () => {
 
 ui.animate.addEventListener("click", animateSequence);
 ui.reset.addEventListener("click", reset);
+ui.dcmToggle.addEventListener("click",()=>{
+    dcmVisible=!dcmVisible;
+    ui.dcmPanel.hidden=!dcmVisible;
+    ui.dcmToggle.textContent=dcmVisible
+        ?"Hide direction cosine matrices"
+        :"Show direction cosine matrices";
+    ui.dcmToggle.setAttribute("aria-expanded",String(dcmVisible));
+    updateDcmPanel();
+});
+ui.dcmDisplay.addEventListener("change",updateDcmPanel);
 
 resetCamera();
 setAircraftConvention();
@@ -272,6 +508,14 @@ configureAngles();
 const requestedStep=new URLSearchParams(location.search).get("step");
 if(requestedStep!==null)
     state.step=clamp(Number(requestedStep)||0,0,maximumStep());
+const requestedDcm=new URLSearchParams(location.search).get("dcm");
+if(["symbolic","numeric"].includes(requestedDcm)){
+    dcmVisible=true;
+    ui.dcmDisplay.value=requestedDcm;
+    ui.dcmPanel.hidden=false;
+    ui.dcmToggle.textContent="Hide direction cosine matrices";
+    ui.dcmToggle.setAttribute("aria-expanded","true");
+}
 resizeRenderer();
 resizeProjection();
 update();
